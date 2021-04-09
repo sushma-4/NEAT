@@ -106,6 +106,28 @@ def parse_file(input_file, real_q, off_q, max_reads, n_samp, plot_stuff):
         print('\nError: Read in Q-scores above specified maximum:', q_range[1], '>', real_q, '\n')
         exit(1)
 
+    # TODO insert trinucleotide context stuff here
+
+    # TODO create matrix of probabilities
+    # how many times do we observe each trinucleotide in the reference (and input bed region, if present)?
+    trinuc_ref_count = {}
+    # [(trinuc_a, trinuc_b)] = # of times we observed a mutation from trinuc_a into trinuc_b
+    trinuc_transition_count = {}
+    # total count of SNPs
+    snp_count = 0
+    # overall SNP transition probabilities
+    snp_transition_count = {}
+    # total count of indels, indexed by length
+    indel_count = {}
+    # tabulate how much non-N reference sequence we've eaten through
+    total_reflen = 0
+    # detect variants that occur in a significant percentage of the input samples (pos,ref,alt,pop_fraction)
+    common_variants = []
+    # tabulate how many unique donors we've encountered (this is useful for identifying common variants)
+    total_donors = {}
+    # identify regions that have significantly higher local mutation rates than the average
+    high_mut_regions = []
+
     print('computing probabilities...')
     prob_q = [None] + [[[0. for m in range(real_q)] for n in range(real_q)] for p in range(actual_readlen - 1)]
     for p in range(1, actual_readlen):

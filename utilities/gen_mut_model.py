@@ -78,23 +78,23 @@ def main():
     is_human = args.human_sample
 
     # how many times do we observe each trinucleotide in the reference (and input bed region, if present)?
-    TRINUC_REF_COUNT = {}
+    trinuc_ref_count = {}
     # [(trinuc_a, trinuc_b)] = # of times we observed a mutation from trinuc_a into trinuc_b
-    TRINUC_TRANSITION_COUNT = {}
+    trinuc_transition_count = {}
     # total count of SNPs
-    SNP_COUNT = 0
+    snp_count = 0
     # overall SNP transition probabilities
-    SNP_TRANSITION_COUNT = {}
+    snp_transition_count = {}
     # total count of indels, indexed by length
-    INDEL_COUNT = {}
+    indel_count = {}
     # tabulate how much non-N reference sequence we've eaten through
-    TOTAL_REFLEN = 0
+    total_reflen = 0
     # detect variants that occur in a significant percentage of the input samples (pos,ref,alt,pop_fraction)
-    COMMON_VARIANTS = []
+    common_variants = []
     # tabulate how many unique donors we've encountered (this is useful for identifying common variants)
-    TOTAL_DONORS = {}
+    total_donors = {}
     # identify regions that have significantly higher local mutation rates than the average
-    HIGH_MUT_REGIONS = []
+    high_mut_regions = []
 
     # Process bed file,
     is_bed = False
@@ -236,17 +236,17 @@ def main():
             for sr in sub_regions:
                 sub_seq = ref_dict[ref_name][sr[0]: sr[1]].seq
                 for trinuc in VALID_TRINUC:
-                    if trinuc not in TRINUC_REF_COUNT:
-                        TRINUC_REF_COUNT[trinuc] = 0
-                    TRINUC_REF_COUNT[trinuc] += sub_seq.count_overlap(trinuc)
+                    if trinuc not in trinuc_ref_count:
+                        trinuc_ref_count[trinuc] = 0
+                    trinuc_ref_count[trinuc] += sub_seq.count_overlap(trinuc)
 
     elif not os.path.isfile(ref + '.trinucCounts'):
         for ref_name in matching_chromosomes:
             sub_seq = ref_dict[ref_name].seq
             for trinuc in VALID_TRINUC:
-                if trinuc not in TRINUC_REF_COUNT:
-                    TRINUC_REF_COUNT[trinuc] = 0
-                TRINUC_REF_COUNT[trinuc] += sub_seq.count_overlap(trinuc)
+                if trinuc not in trinuc_ref_count:
+                    trinuc_ref_count[trinuc] = 0
+                trinuc_ref_count[trinuc] += sub_seq.count_overlap(trinuc)
     else:
         print('Found trinucCounts file, using that.')
 
@@ -254,7 +254,7 @@ def main():
     print('Creating mutational model...')
     for ref_name in matching_chromosomes:
         # Count the number of non-N nucleotides for the reference
-        TOTAL_REFLEN += len(ref_dict[ref_name].seq) - ref_dict[ref_name].seq.count('N')
+        total_reflen += len(ref_dict[ref_name].seq) - ref_dict[ref_name].seq.count('N')
 
         # list to be used for counting variants that occur multiple times in file (i.e. in multiple samples)
         VDAT_COMMON = []
@@ -284,14 +284,14 @@ def main():
                     if trinuc_alt not in VALID_TRINUC:
                         continue
                     key = (trinuc_ref, trinuc_alt)
-                    if key not in TRINUC_TRANSITION_COUNT:
-                        TRINUC_TRANSITION_COUNT[key] = 0
-                    TRINUC_TRANSITION_COUNT[key] += 1
-                    SNP_COUNT += 1
+                    if key not in trinuc_transition_count:
+                        trinuc_transition_count[key] = 0
+                    trinuc_transition_count[key] += 1
+                    snp_count += 1
                     key2 = (str(row.REF), str(row.ALT))
-                    if key2 not in SNP_TRANSITION_COUNT:
-                        SNP_TRANSITION_COUNT[key2] = 0
-                    SNP_TRANSITION_COUNT[key2] += 1
+                    if key2 not in snp_transition_count:
+                        snp_transition_count[key2] = 0
+                    snp_transition_count[key2] += 1
 
                     my_pop_freq = VCF_DEFAULT_POP_FREQ
                     if ';CAF=' in snp_df.loc[index, 'INFO']:
@@ -318,9 +318,9 @@ def main():
                     len_alt = len(row.ALT)
                 if len_ref != len_alt:
                     indel_len = len_alt - len_ref
-                    if indel_len not in INDEL_COUNT:
-                        INDEL_COUNT[indel_len] = 0
-                    INDEL_COUNT[indel_len] += 1
+                    if indel_len not in indel_count:
+                        indel_count[indel_len] = 0
+                    indel_count[indel_len] += 1
 
                     my_pop_freq = VCF_DEFAULT_POP_FREQ
                     if ';CAF=' in row.INFO:
@@ -339,7 +339,7 @@ def main():
         min_value = np.percentile([n[4] for n in VDAT_COMMON], percentile_var)
         for k in sorted(VDAT_COMMON):
             if k[4] >= min_value:
-                COMMON_VARIANTS.append((ref_name, k[0], k[1], k[3], k[4]))
+                common_variants.append((ref_name, k[0], k[1], k[3], k[4]))
         VDAT_COMMON = {(n[0], n[1], n[2], n[3]): n[4] for n in VDAT_COMMON}
 
         # identify areas that have contained significantly higher random mutation rates
@@ -363,17 +363,17 @@ def main():
         minimum_value = np.percentile([n[0] for n in candidate_regions], percentile_clust)
         for n in candidate_regions:
             if n[0] >= minimum_value:
-                HIGH_MUT_REGIONS.append((ref_name, n[1], n[2], n[0]))
+                high_mut_regions.append((ref_name, n[1], n[2], n[0]))
         # collapse overlapping regions
-        for i in range(len(HIGH_MUT_REGIONS) - 1, 0, -1):
-            if HIGH_MUT_REGIONS[i - 1][2] >= HIGH_MUT_REGIONS[i][1] and HIGH_MUT_REGIONS[i - 1][0] == \
-                    HIGH_MUT_REGIONS[i][0]:
+        for i in range(len(high_mut_regions) - 1, 0, -1):
+            if high_mut_regions[i - 1][2] >= high_mut_regions[i][1] and high_mut_regions[i - 1][0] == \
+                    high_mut_regions[i][0]:
                 # Might need to research a more accurate way to get the mutation rate for this region
-                avg_mut_rate = 0.5 * HIGH_MUT_REGIONS[i - 1][3] + 0.5 * HIGH_MUT_REGIONS[i][
+                avg_mut_rate = 0.5 * high_mut_regions[i - 1][3] + 0.5 * high_mut_regions[i][
                     3]
-                HIGH_MUT_REGIONS[i - 1] = (
-                    HIGH_MUT_REGIONS[i - 1][0], HIGH_MUT_REGIONS[i - 1][1], HIGH_MUT_REGIONS[i][2], avg_mut_rate)
-                del HIGH_MUT_REGIONS[i]
+                high_mut_regions[i - 1] = (
+                    high_mut_regions[i - 1][0], high_mut_regions[i - 1][1], high_mut_regions[i][2], avg_mut_rate)
+                del high_mut_regions[i]
 
     # if we didn't count ref trinucs because we found file, read in ref counts from file now
     if os.path.isfile(ref + '.trinucCounts'):
@@ -381,7 +381,7 @@ def main():
         f = open(ref + '.trinucCounts', 'r')
         for line in f:
             splt = line.strip().split('\t')
-            TRINUC_REF_COUNT[splt[0]] = int(splt[1])
+            trinuc_ref_count[splt[0]] = int(splt[1])
         f.close()
     # otherwise, save trinuc counts to file, if desired
     elif save_trinuc:
@@ -390,12 +390,12 @@ def main():
         else:
             print('saving trinuc counts to file...')
             f = open(ref + '.trinucCounts', 'w')
-            for trinuc in sorted(TRINUC_REF_COUNT.keys()):
-                f.write(trinuc + '\t' + str(TRINUC_REF_COUNT[trinuc]) + '\n')
+            for trinuc in sorted(trinuc_ref_count.keys()):
+                f.write(trinuc + '\t' + str(trinuc_ref_count[trinuc]) + '\n')
             f.close()
 
     # if for some reason we didn't find any valid input variants, exit gracefully...
-    total_var = SNP_COUNT + sum(INDEL_COUNT.values())
+    total_var = snp_count + sum(indel_count.values())
     if total_var == 0:
         print(
             '\nError: No valid variants were found, model could not be created. (Are you using the correct reference?)\n')
@@ -411,33 +411,33 @@ def main():
     # frequency of snp transitions, given a snp occurs.
     SNP_TRANS_FREQ = {}
 
-    for trinuc in sorted(TRINUC_REF_COUNT.keys()):
+    for trinuc in sorted(trinuc_ref_count.keys()):
         my_count = 0
-        for k in sorted(TRINUC_TRANSITION_COUNT.keys()):
+        for k in sorted(trinuc_transition_count.keys()):
             if k[0] == trinuc:
-                my_count += TRINUC_TRANSITION_COUNT[k]
-        TRINUC_MUT_PROB[trinuc] = my_count / float(TRINUC_REF_COUNT[trinuc])
-        for k in sorted(TRINUC_TRANSITION_COUNT.keys()):
+                my_count += trinuc_transition_count[k]
+        TRINUC_MUT_PROB[trinuc] = my_count / float(trinuc_ref_count[trinuc])
+        for k in sorted(trinuc_transition_count.keys()):
             if k[0] == trinuc:
-                TRINUC_TRANS_PROBS[k] = TRINUC_TRANSITION_COUNT[k] / float(my_count)
+                TRINUC_TRANS_PROBS[k] = trinuc_transition_count[k] / float(my_count)
 
     for n1 in VALID_NUCL:
-        rolling_tot = sum([SNP_TRANSITION_COUNT[(n1, n2)] for n2 in VALID_NUCL if (n1, n2) in SNP_TRANSITION_COUNT])
+        rolling_tot = sum([snp_transition_count[(n1, n2)] for n2 in VALID_NUCL if (n1, n2) in snp_transition_count])
         for n2 in VALID_NUCL:
             key2 = (n1, n2)
-            if key2 in SNP_TRANSITION_COUNT:
-                SNP_TRANS_FREQ[key2] = SNP_TRANSITION_COUNT[key2] / float(rolling_tot)
+            if key2 in snp_transition_count:
+                SNP_TRANS_FREQ[key2] = snp_transition_count[key2] / float(rolling_tot)
 
     # compute average snp and indel frequencies
-    SNP_FREQ = SNP_COUNT / float(total_var)
+    SNP_FREQ = snp_count / float(total_var)
     AVG_INDEL_FREQ = 1. - SNP_FREQ
-    INDEL_FREQ = {k: (INDEL_COUNT[k] / float(total_var)) / AVG_INDEL_FREQ for k in INDEL_COUNT.keys()}
+    INDEL_FREQ = {k: (indel_count[k] / float(total_var)) / AVG_INDEL_FREQ for k in indel_count.keys()}
 
     if is_bed:
         track_sum = float(my_bed['track_len'].sum())
         AVG_MUT_RATE = total_var / track_sum
     else:
-        AVG_MUT_RATE = total_var / float(TOTAL_REFLEN)
+        AVG_MUT_RATE = total_var / float(total_reflen)
 
     #	if values weren't found in data, appropriately append null entries
     print_trinuc_warning = False
@@ -496,8 +496,8 @@ def main():
                     'INDEL_FREQ': INDEL_FREQ,
                     'TRINUC_MUT_PROB': TRINUC_MUT_PROB,
                     'TRINUC_TRANS_PROBS': TRINUC_TRANS_PROBS,
-                    'COMMON_VARIANTS': COMMON_VARIANTS,
-                    'HIGH_MUT_REGIONS': HIGH_MUT_REGIONS}
+                    'common_variants': common_variants,
+                    'high_mut_regions': high_mut_regions}
     pickle.dump(OUT_DICT, open(out_pickle, "wb"))
 
 
