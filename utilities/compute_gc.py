@@ -164,6 +164,8 @@ def main():
 
     y_out = []
     for k in sorted(gc_bins.keys()):
+        if average_coverage == 0:
+            average_coverage = 0.01
         gc_bins[k] /= average_coverage
         y_out.append(gc_bins[k])
 
